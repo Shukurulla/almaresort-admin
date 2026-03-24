@@ -13,7 +13,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, QrCode, Trash2, Table2, Users } from "lucide-react";
+import { Plus, QrCode, Trash2, Table2, Users, Download, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import type { Table } from "@/types";
 
 export default function TablesPage() {
@@ -26,7 +27,9 @@ export default function TablesPage() {
   const [qrDialog, setQrDialog] = useState<{
     qrCode: string;
     url: string;
+    tableNumber?: number;
   } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const restaurantId = user?.restaurantId || "";
 
@@ -55,9 +58,25 @@ export default function TablesPage() {
     setTables((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleQr = async (id: string) => {
-    const result = await api.getTableQr(id);
-    setQrDialog(result);
+  const handleQr = async (table: Table) => {
+    const result = await api.getTableQr(table.id);
+    setQrDialog({ ...result, tableNumber: table.number });
+  };
+
+  const handleDownloadQr = () => {
+    if (!qrDialog) return;
+    const link = document.createElement("a");
+    link.download = `table-${qrDialog.tableNumber || "qr"}.png`;
+    link.href = qrDialog.qrCode;
+    link.click();
+  };
+
+  const handleCopyLink = async () => {
+    if (!qrDialog) return;
+    await navigator.clipboard.writeText(qrDialog.url);
+    setCopied(true);
+    toast.success("Ссылка скопирована");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -81,7 +100,8 @@ export default function TablesPage() {
         {tables.map((table) => (
           <div
             key={table.id}
-            className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            className="cursor-pointer rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+            onClick={() => handleQr(table)}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -105,13 +125,13 @@ export default function TablesPage() {
               </div>
               <div className="flex gap-1">
                 <button
-                  onClick={() => handleQr(table.id)}
+                  onClick={(e) => { e.stopPropagation(); handleQr(table); }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-500"
                 >
                   <QrCode className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => handleDelete(table.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDelete(table.id); }}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -177,19 +197,44 @@ export default function TablesPage() {
       </Dialog>
 
       {/* QR Dialog */}
-      <Dialog open={!!qrDialog} onOpenChange={() => setQrDialog(null)}>
+      <Dialog open={!!qrDialog} onOpenChange={() => { setQrDialog(null); setCopied(false); }}>
         <DialogContent className="text-center">
           <DialogHeader>
-            <DialogTitle>QR код</DialogTitle>
+            <DialogTitle>
+              Стол #{qrDialog?.tableNumber} — QR код
+            </DialogTitle>
           </DialogHeader>
           {qrDialog && (
             <div>
               <img
                 src={qrDialog.qrCode}
                 alt="QR Code"
-                className="mx-auto h-64 w-64"
+                className="mx-auto h-64 w-64 rounded-lg"
               />
-              <p className="mt-2 break-all text-sm text-gray-500">
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  className="flex-1 bg-blue-500 hover:bg-blue-600"
+                  onClick={handleDownloadQr}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Скачать QR
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleCopyLink}
+                >
+                  {copied ? (
+                    <Check className="mr-2 h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="mr-2 h-4 w-4" />
+                  )}
+                  {copied ? "Скопировано!" : "Копировать ссылку"}
+                </Button>
+              </div>
+
+              <p className="mt-3 break-all text-xs text-gray-400">
                 {qrDialog.url}
               </p>
             </div>
